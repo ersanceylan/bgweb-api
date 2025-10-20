@@ -22,7 +22,7 @@ go.work
 
 # Build
 /bgweb-api
-lib.wasm
+# lib.wasm
 
 # Misc
 .DS_Store
