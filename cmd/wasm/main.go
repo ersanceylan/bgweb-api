@@ -8,14 +8,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
-	"syscall/js"
 )
 
 //go:embed data
 var data embed.FS
 
-func main() {
-	c := make(chan struct{}, 0)
+var initialized bool
+
+//export wasm_init
+func wasm_init() {
+	if initialized {
+		return
+	}
 
 	// root embedded fs to data/
 	dataDir, err := fs.Sub(data, "data")
@@ -27,18 +31,18 @@ func main() {
 		panic(err)
 	}
 
-	println("WASM Go Initialized")
-	// register functions
-	{
-		js.Global().Set("wasm_get_moves", js.FuncOf(getMoves))
-	}
-	<-c
+	initialized = true
 }
 
-func getMoves(this js.Value, input []js.Value) interface{} {
+//export wasm_get_moves
+func wasm_get_moves(jsonArgs string) string {
+	if !initialized {
+		return `{"error": "WASM not initialized. Call wasm_init() first."}`
+	}
+
 	var args openapi.MoveArgs
 
-	if err := json.Unmarshal([]byte(input[0].String()), &args); err != nil {
+	if err := json.Unmarshal([]byte(jsonArgs), &args); err != nil {
 		return fmt.Sprintf("{\"error\": \"%v\"}", err.Error())
 	}
 
@@ -54,5 +58,10 @@ func getMoves(this js.Value, input []js.Value) interface{} {
 		return fmt.Sprintf("{\"error\": \"%v\"}", err.Error())
 	}
 
-	return js.ValueOf(string(bytes))
+	return string(bytes)
+}
+
+func main() {
+	// For React Native WebAssembly, main() should not block
+	// The exported functions will be called directly by react-native-webassembly
 }
